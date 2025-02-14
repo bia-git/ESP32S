@@ -34,22 +34,22 @@
 #define OLED_ADDRESS 0x3C
 
 // กำหนดระยะเวลา
-#define READING_INTERVAL 2000        // ระยะเวลาในการอ่านค่า (2 วินาที)
-#define DISPLAY_SWITCH_INTERVAL 3000 // ระยะเวลาในการสลับหน้าจอ (3 วินาที)
-#define AVERAGE_COUNT 5              // จำนวนครั้งในการเก็บค่าเฉลี่ย
+#define READING_INTERVAL 2000         // ระยะเวลาในการอ่านค่า (2 วินาที)
+#define DISPLAY_SWITCH_INTERVAL 3000  // ระยะเวลาในการสลับหน้าจอ (3 วินาที)
+#define AVERAGE_COUNT 5               // จำนวนครั้งในการเก็บค่าเฉลี่ย
 
 // Fan Control Constants
-const int PWM_FREQ = 300;                // KHz frequency for silent operation
-const int PWM_RESOLUTION = 8;            // 8-bit resolution (0-255)
-const int FAN_PIN = 23;                  // Fan Pin
+const int PWM_FREQ = 50;      // KHz frequency for silent operation
+const int PWM_RESOLUTION = 8; // 8-bit resolution (0-255)
+const int FAN_PIN = 23;       // Fan Pin
 
 // Fan Speed Percentages
 const int FAN_SPEED_OFF = 0;
-const int FAN_SPEED_LOW = 102;    // 40%
-const int FAN_SPEED_MEDIUM = 153; // 60%
-const int FAN_SPEED_HIGH = 204;   // 80%
-const int FAN_SPEED_VERY_HIGH = 230; // 90%
-const int FAN_SPEED_MAX = 255;    // 100%
+const int FAN_SPEED_LOW = 102;        // 40%
+const int FAN_SPEED_MEDIUM = 153;     // 60%
+const int FAN_SPEED_HIGH = 204;       // 80%
+const int FAN_SPEED_VERY_HIGH = 230;  // 90%
+const int FAN_SPEED_MAX = 255;        // 100%
 
 // ===================== โครงสร้างข้อมูล =====================
 // โครงสร้างข้อมูลสำหรับ PMS7003
@@ -62,9 +62,9 @@ struct PMS7003_Data {
 
 // โครงสร้างข้อมูลสำหรับระดับคุณภาพอากาศ
 struct AirQualityLevel {
-  int level;         // ระดับ 1-6
-  String status;     // สถานะ
-  int blinkCount;    // จำนวนครั้งที่กระพริบ
+  int level;      // ระดับ 1-6
+  String status;  // สถานะ
+  int blinkCount; // จำนวนครั้งที่กระพริบ
 };
 
 // โครงสร้างข้อมูลสำหรับ AHT10
@@ -130,8 +130,8 @@ void updateLED(int blinkCount) {
     return;
   }
 
-  unsigned long onDuration = 200;   // ระยะเวลาที่ LED ติด (0.2 วินาที)
-  unsigned long offDuration = 200;  // ระยะเวลาที่ LED ดับ (0.2 วินาที)
+  unsigned long onDuration = 200;     // ระยะเวลาที่ LED ติด (0.2 วินาที)
+  unsigned long offDuration = 200;    // ระยะเวลาที่ LED ดับ (0.2 วินาที)
   unsigned long pauseDuration = 1000; // ระยะเวลาพักระหว่างรอบ (1 วินาที)
 
   for (int i = 0; i < blinkCount; i++) {
@@ -359,8 +359,6 @@ void setup() {
   // ตั้งค่าจอ OLED
   setupOLED();
 }
-
-// ต่อจากโค้ดก่อนหน้า...
 
 void loop() {
   PMS7003_Data airData = readPMS7003();
