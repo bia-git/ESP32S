@@ -11,6 +11,7 @@
  * - OLED Display: SDA=21, SCL=22
  * - PMS7003: RX=16, TX=17
  * - LED: PIN 2
+ * - FAN: PIN 23
  */
 
 #include <Wire.h>
@@ -33,23 +34,33 @@
 #define PMS_TX 17
 #define OLED_ADDRESS 0x3C
 
+// กำหนดขา RGB LED (PWM)
+#define RGB_RED_PIN 25
+#define RGB_GREEN_PIN 26
+#define RGB_BLUE_PIN 27
+
 // กำหนดระยะเวลา
 #define READING_INTERVAL 2000         // ระยะเวลาในการอ่านค่า (2 วินาที)
 #define DISPLAY_SWITCH_INTERVAL 3000  // ระยะเวลาในการสลับหน้าจอ (3 วินาที)
 #define AVERAGE_COUNT 5               // จำนวนครั้งในการเก็บค่าเฉลี่ย
 
 // Fan Control Constants
-const int PWM_FREQ = 50;      // KHz frequency for silent operation
+const int PWM_FREQ = 18000;      // KHz frequency for silent operation
 const int PWM_RESOLUTION = 8; // 8-bit resolution (0-255)
 const int FAN_PIN = 23;       // Fan Pin
 
-// Fan Speed Percentages
+// Fan Speed Percentages - ปรับเพื่อให้มีช่วงการทำงานที่เหมาะสมกับพัดลม
 const int FAN_SPEED_OFF = 0;
-const int FAN_SPEED_LOW = 102;        // 40%
-const int FAN_SPEED_MEDIUM = 153;     // 60%
-const int FAN_SPEED_HIGH = 204;       // 80%
-const int FAN_SPEED_VERY_HIGH = 230;  // 90%
-const int FAN_SPEED_MAX = 255;        // 100%
+const int FAN_SPEED_LOW = 25;         // ปรับเริ่มจาก 25 เพื่อให้พัดลมเริ่มทำงานได้ดีขึ้น
+const int FAN_SPEED_MEDIUM = 100;     // ยังคงเหมือนเดิม
+const int FAN_SPEED_HIGH = 170;       // 60% ค่าที่ตั้งไว้
+const int FAN_SPEED_VERY_HIGH = 210;  // 80% ค่าที่ตั้งไว้
+const int FAN_SPEED_MAX = 255;        // 100% ค่าที่ตั้งไว้
+
+// เพิ่มค่าสำหรับการเปลี่ยนความเร็วอย่างนุ่มนวล
+const int FAN_RAMP_DELAY = 1000;  // ระยะเวลาหน่วงระหว่างการเปลี่ยนความเร็ว (milliseconds)
+int targetFanSpeed = 0;        // ความเร็วพัดลมปัจจุบัน
+int currentFanSpeed = 0;        // ความเร็วพัดลมปัจจุบัน
 
 // ===================== โครงสร้างข้อมูล =====================
 // โครงสร้างข้อมูลสำหรับ PMS7003
@@ -141,6 +152,71 @@ void updateLED(int blinkCount) {
     delay(offDuration);
   }
   delay(pauseDuration);
+}
+
+// ฟังก์ชันควบคุมพัดลม
+void updateFAN(int levelFanSpeed) {
+  if (levelFanSpeed == 1) {
+      targetFanSpeed = FAN_SPEED_OFF;
+  } else if (levelFanSpeed == 2) {
+      targetFanSpeed = FAN_SPEED_LOW;
+  } else if (levelFanSpeed == 3) {
+      targetFanSpeed = FAN_SPEED_MEDIUM;
+  } else if (levelFanSpeed == 4) {
+      targetFanSpeed = FAN_SPEED_HIGH;
+  } else if (levelFanSpeed == 5) {
+      targetFanSpeed = FAN_SPEED_VERY_HIGH;
+  } else {
+      targetFanSpeed = FAN_SPEED_MAX;
+  }
+  
+  // ไม่ต้องทำอะไรถ้าความเร็วเดิมเท่ากับความเร็วใหม่
+  if (currentFanSpeed == targetFanSpeed) {
+    return;
+  }
+  
+  // ปรับความเร็วอย่างช้าๆ จนถึงค่าเป้าหมาย
+  if (currentFanSpeed < targetFanSpeed) {
+    // เพิ่มความเร็ว
+    for (int i = currentFanSpeed; i <= targetFanSpeed; i++) {
+      ledcWrite(FAN_PIN, i);
+      delay(FAN_RAMP_DELAY);
+    }
+  } else {
+    // ลดความเร็ว
+    for (int i = currentFanSpeed; i >= targetFanSpeed; i--) {
+      ledcWrite(FAN_PIN, i);
+      delay(FAN_RAMP_DELAY);
+    }
+  }
+  
+  currentFanSpeed = targetFanSpeed;
+}
+
+// ฟังก์ชันควบคุม RGB LED
+void updateRGB(int levelRGB) {
+  if (levelRGB == 0) {
+      setColorRGB(0, 0, 0);         // **ปิดไฟ**
+      return;
+  } else if (levelRGB == 1) {
+      setColorRGB(0, 255, 0);       // **สีเขียวสด** → อากาศดีมาก (PM2.5 ต่ำมาก)
+  } else if (levelRGB == 2) {
+      setColorRGB(255, 255, 0);     // **สีเหลืองสด** → อากาศพอใช้ (PM2.5 เริ่มสูงขึ้น)
+  } else if (levelRGB == 3) {
+      setColorRGB(255, 165, 0);     // **สีส้มเข้ม** → อากาศเริ่มแย่ (PM2.5 ปานกลาง)
+  } else if (levelRGB == 4) {
+      setColorRGB(255, 0, 0);       // **สีแดงสด** → อากาศแย่ (PM2.5 สูง)
+  } else if (levelRGB == 5) {
+      setColorRGB(153, 50, 204);    // **สีม่วงอมน้ำเงิน (พลัม)** → อากาศแย่มาก (PM2.5 สูงมาก)
+  } else {
+      setColorRGB(139, 0, 0);       // **สีแดงเข้ม (เลือดหมู)** → อันตราย (PM2.5 อันตราย)
+  }
+}
+
+void setColorRGB(int R, int G, int B) {
+  analogWrite(RGB_RED_PIN,   R);
+  analogWrite(RGB_GREEN_PIN, G);
+  analogWrite(RGB_BLUE_PIN,  B);
 }
 
 // ===================== ฟังก์ชันอ่านค่าเซนเซอร์ =====================
@@ -286,21 +362,6 @@ void displayAveragePM(float avgPM2_5) {
   display.setCursor(5, 53);
   display.printf("[%d:6] %s", level.level, level.status.c_str());
 
-  if (level.level == 1) {
-      ledcWrite(FAN_PIN, FAN_SPEED_OFF);
-  } else if (level.level == 2) {
-      ledcWrite(FAN_PIN, FAN_SPEED_LOW);
-  } else if (level.level == 3) {
-      ledcWrite(FAN_PIN, FAN_SPEED_MEDIUM);
-  } else if (level.level == 4) {
-      ledcWrite(FAN_PIN, FAN_SPEED_HIGH);
-  } else if (level.level == 5) {
-      ledcWrite(FAN_PIN, FAN_SPEED_VERY_HIGH);
-  } else {
-      ledcWrite(FAN_PIN, FAN_SPEED_MAX);
-  }
-
-
   display.display();
 }
 
@@ -349,6 +410,11 @@ void setup() {
   // ตั้งค่า LED
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
+
+  // ตั้งค่า RGB LED
+  pinMode(RGB_RED_PIN,   OUTPUT);
+  pinMode(RGB_GREEN_PIN, OUTPUT);
+  pinMode(RGB_BLUE_PIN,  OUTPUT);
   
   // เริ่มต้นเซนเซอร์ AHT10
   if (!aht.begin()) {
@@ -417,6 +483,8 @@ void loop() {
     // อัพเดท LED ตามระดับคุณภาพอากาศ
     AirQualityLevel level = getAirQualityLevel(airData.PM2_5);
     updateLED(level.blinkCount);
+    updateFAN(level.level);
+    // updateRGB(level.level);
   } else {
     Serial.println(F("Waiting for valid PMS7003 data..."));
   }
