@@ -45,21 +45,21 @@
 #define AVERAGE_COUNT 5               // จำนวนครั้งในการเก็บค่าเฉลี่ย
 
 // Fan Control Constants
-const int PWM_FREQ = 18000;      // KHz frequency for silent operation
-const int PWM_RESOLUTION = 8; // 8-bit resolution (0-255)
-const int FAN_PIN = 23;       // Fan Pin
+const int PWM_FREQ = 17000;      // KHz frequency for silent operation
+const int PWM_RESOLUTION = 8;    // 8-bit resolution (0-255)
+const int FAN_PIN = 23;          // Fan Pin
 
 // Fan Speed Percentages - ปรับเพื่อให้มีช่วงการทำงานที่เหมาะสมกับพัดลม
-const int FAN_SPEED_OFF = 0;
-const int FAN_SPEED_LOW = 25;         // ปรับเริ่มจาก 25 เพื่อให้พัดลมเริ่มทำงานได้ดีขึ้น
-const int FAN_SPEED_MEDIUM = 100;     // ยังคงเหมือนเดิม
-const int FAN_SPEED_HIGH = 170;       // 60% ค่าที่ตั้งไว้
-const int FAN_SPEED_VERY_HIGH = 210;  // 80% ค่าที่ตั้งไว้
-const int FAN_SPEED_MAX = 255;        // 100% ค่าที่ตั้งไว้
+const int FAN_SPEED_OFF = 0;          // 0%
+const int FAN_SPEED_LOW = 25;         // ~10%
+const int FAN_SPEED_MEDIUM = 64;      // ~25%
+const int FAN_SPEED_HIGH = 128;       // ~50%
+const int FAN_SPEED_VERY_HIGH = 192;  // ~75%
+const int FAN_SPEED_MAX = 255;        // ~100%
 
 // เพิ่มค่าสำหรับการเปลี่ยนความเร็วอย่างนุ่มนวล
-const int FAN_RAMP_DELAY = 1000;  // ระยะเวลาหน่วงระหว่างการเปลี่ยนความเร็ว (milliseconds)
-int targetFanSpeed = 0;        // ความเร็วพัดลมปัจจุบัน
+const int FAN_RAMP_DELAY = 50;  // ระยะเวลาหน่วงระหว่างการเปลี่ยนความเร็ว (milliseconds)
+int targetFanSpeed = 0;         // ความเร็วพัดลมปัจจุบัน
 int currentFanSpeed = 0;        // ความเร็วพัดลมปัจจุบัน
 
 // ===================== โครงสร้างข้อมูล =====================
@@ -156,18 +156,14 @@ void updateLED(int blinkCount) {
 
 // ฟังก์ชันควบคุมพัดลม
 void updateFAN(int levelFanSpeed) {
-  if (levelFanSpeed == 1) {
-      targetFanSpeed = FAN_SPEED_OFF;
-  } else if (levelFanSpeed == 2) {
-      targetFanSpeed = FAN_SPEED_LOW;
-  } else if (levelFanSpeed == 3) {
-      targetFanSpeed = FAN_SPEED_MEDIUM;
-  } else if (levelFanSpeed == 4) {
-      targetFanSpeed = FAN_SPEED_HIGH;
-  } else if (levelFanSpeed == 5) {
-      targetFanSpeed = FAN_SPEED_VERY_HIGH;
-  } else {
-      targetFanSpeed = FAN_SPEED_MAX;
+  // กำหนดค่าความเร็วพัดลมตามระดับที่กำหนด
+  switch (levelFanSpeed) {
+    case 1: targetFanSpeed = FAN_SPEED_OFF; break;
+    case 2: targetFanSpeed = FAN_SPEED_LOW; break;
+    case 3: targetFanSpeed = FAN_SPEED_MEDIUM; break;
+    case 4: targetFanSpeed = FAN_SPEED_HIGH; break;
+    case 5: targetFanSpeed = FAN_SPEED_VERY_HIGH; break;
+    default: targetFanSpeed = FAN_SPEED_MAX; break;
   }
   
   // ไม่ต้องทำอะไรถ้าความเร็วเดิมเท่ากับความเร็วใหม่
@@ -406,6 +402,7 @@ void setup() {
 
   // Initialize PWM for fan
   ledcAttach(FAN_PIN, PWM_FREQ, PWM_RESOLUTION);
+  ledcWrite(FAN_PIN, FAN_SPEED_OFF);
   
   // ตั้งค่า LED
   pinMode(LED_PIN, OUTPUT);
