@@ -38,16 +38,16 @@
 #define MINI_FAN_PIN 25
 
 // กำหนดระยะเวลา
-#define READING_INTERVAL 5000         // ระยะเวลาในการอ่านค่า (5 วินาที)
-#define DISPLAY_SWITCH_INTERVAL 5000  // ระยะเวลาในการสลับหน้าจอ (5 วินาที)
-#define AVERAGE_COUNT 5               // จำนวนครั้งในการเก็บค่าเฉลี่ย
+#define READING_INTERVAL 10000         // ระยะเวลาในการอ่านค่า (10 วินาที)
+#define DISPLAY_SWITCH_INTERVAL 8000   // ระยะเวลาในการสลับหน้าจอ (8 วินาที)
+#define AVERAGE_COUNT 5                // จำนวนครั้งในการเก็บค่าเฉลี่ย
 
 // กำหนดค่าระดับ PM2.5 สำหรับแต่ละเกณฑ์คุณภาพอากาศ
-const float PM25_GOOD = 15.0;              // ดี
-const float PM25_MODERATE = 25.0;          // ปานกลาง
+const float PM25_GOOD = 15.0;                // ดี
+const float PM25_MODERATE = 25.0;            // ปานกลาง
 const float PM25_UNHEALTHY_SENSITIVE = 37.5; // ไม่ดีต่อกลุ่มเสี่ยง
-const float PM25_UNHEALTHY = 75.0;         // ไม่ดีต่อสุขภาพ
-const float PM25_VERY_UNHEALTHY = 100.0;   // ไม่ดีต่อสุขภาพอย่างมาก
+const float PM25_UNHEALTHY = 75.0;           // ไม่ดีต่อสุขภาพ
+const float PM25_VERY_UNHEALTHY = 100.0;     // ไม่ดีต่อสุขภาพอย่างมาก
 // > 100 = อันตราย
 
 // Fan Control Constants
@@ -56,17 +56,17 @@ const int PWM_RESOLUTION = 7;    // 7-bit resolution (0-100)
 const int FAN_PIN = 23;          // Fan Pin
 
 // Fan Speed Percentages (0-100 scale)
-const int FAN_SPEED_OFF = 0;          // 0%
-const int FAN_SPEED_LOW = 20;         // 20%
-const int FAN_SPEED_MEDIUM = 40;      // 40%
+const int FAN_SPEED_OFF = 0;
+const int FAN_SPEED_LOW = 10;
+const int FAN_SPEED_MEDIUM = 30;
 const int FAN_SPEED_HIGH = 60;        // 60%
 const int FAN_SPEED_VERY_HIGH = 80;   // 80%
 const int FAN_SPEED_MAX = 100;        // 100%
 
 // เพิ่มค่าสำหรับการเปลี่ยนความเร็วอย่างนุ่มนวล
-const int FAN_RAMP_DELAY = 100;  // ระยะเวลาหน่วงระหว่างการเปลี่ยนความเร็ว (milliseconds)
-int targetFanSpeed = 0;         // ความเร็วพัดลมเป้าหมาย
-int currentFanSpeed = 0;        // ความเร็วพัดลมปัจจุบัน
+const int FAN_RAMP_DELAY = 500;  // ระยะเวลาหน่วงระหว่างการเปลี่ยนความเร็ว (milliseconds)
+int targetFanSpeed = 0;          // ความเร็วพัดลมเป้าหมาย
+int currentFanSpeed = 0;         // ความเร็วพัดลมปัจจุบัน
 
 // ===================== โครงสร้างข้อมูล =====================
 // โครงสร้างข้อมูลสำหรับ PMS7003
