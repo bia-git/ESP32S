@@ -6,7 +6,7 @@
  * - วัดอุณหภูมิและความชื้นจากเซนเซอร์ AHT10
  * - แสดงผลบนจอ OLED แบบ 3 หน้าจอ
  * - LED แสดงระดับคุณภาพอากาศด้วยการกะพริบ
- * 
+ * - พัดลมทำงานตามค่าเฉลี่ยของฝุ่น PM2.5
  * การเชื่อมต่อ:
  * - OLED Display: SDA=21, SCL=22
  * - PMS7003: RX=16, TX=17
@@ -34,32 +34,38 @@
 #define PMS_TX 17
 #define OLED_ADDRESS 0x3C
 
-// กำหนดขา RGB LED (PWM)
-#define RGB_RED_PIN 25
-#define RGB_GREEN_PIN 26
-#define RGB_BLUE_PIN 27
+// กำหนดขา MINI FAN
+#define MINI_FAN_PIN 25
 
 // กำหนดระยะเวลา
-#define READING_INTERVAL 2000         // ระยะเวลาในการอ่านค่า (2 วินาที)
-#define DISPLAY_SWITCH_INTERVAL 3000  // ระยะเวลาในการสลับหน้าจอ (3 วินาที)
+#define READING_INTERVAL 5000         // ระยะเวลาในการอ่านค่า (5 วินาที)
+#define DISPLAY_SWITCH_INTERVAL 5000  // ระยะเวลาในการสลับหน้าจอ (5 วินาที)
 #define AVERAGE_COUNT 5               // จำนวนครั้งในการเก็บค่าเฉลี่ย
+
+// กำหนดค่าระดับ PM2.5 สำหรับแต่ละเกณฑ์คุณภาพอากาศ
+const float PM25_GOOD = 15.0;              // ดี
+const float PM25_MODERATE = 25.0;          // ปานกลาง
+const float PM25_UNHEALTHY_SENSITIVE = 37.5; // ไม่ดีต่อกลุ่มเสี่ยง
+const float PM25_UNHEALTHY = 75.0;         // ไม่ดีต่อสุขภาพ
+const float PM25_VERY_UNHEALTHY = 100.0;   // ไม่ดีต่อสุขภาพอย่างมาก
+// > 100 = อันตราย
 
 // Fan Control Constants
 const int PWM_FREQ = 17000;      // KHz frequency for silent operation
-const int PWM_RESOLUTION = 8;    // 8-bit resolution (0-255)
+const int PWM_RESOLUTION = 7;    // 7-bit resolution (0-100)
 const int FAN_PIN = 23;          // Fan Pin
 
-// Fan Speed Percentages - ปรับเพื่อให้มีช่วงการทำงานที่เหมาะสมกับพัดลม
+// Fan Speed Percentages (0-100 scale)
 const int FAN_SPEED_OFF = 0;          // 0%
-const int FAN_SPEED_LOW = 25;         // ~10%
-const int FAN_SPEED_MEDIUM = 64;      // ~25%
-const int FAN_SPEED_HIGH = 128;       // ~50%
-const int FAN_SPEED_VERY_HIGH = 192;  // ~75%
-const int FAN_SPEED_MAX = 255;        // ~100%
+const int FAN_SPEED_LOW = 20;         // 20%
+const int FAN_SPEED_MEDIUM = 40;      // 40%
+const int FAN_SPEED_HIGH = 60;        // 60%
+const int FAN_SPEED_VERY_HIGH = 80;   // 80%
+const int FAN_SPEED_MAX = 100;        // 100%
 
 // เพิ่มค่าสำหรับการเปลี่ยนความเร็วอย่างนุ่มนวล
-const int FAN_RAMP_DELAY = 50;  // ระยะเวลาหน่วงระหว่างการเปลี่ยนความเร็ว (milliseconds)
-int targetFanSpeed = 0;         // ความเร็วพัดลมปัจจุบัน
+const int FAN_RAMP_DELAY = 100;  // ระยะเวลาหน่วงระหว่างการเปลี่ยนความเร็ว (milliseconds)
+int targetFanSpeed = 0;         // ความเร็วพัดลมเป้าหมาย
 int currentFanSpeed = 0;        // ความเร็วพัดลมปัจจุบัน
 
 // ===================== โครงสร้างข้อมูล =====================
@@ -117,15 +123,15 @@ unsigned long lastDisplaySwitch = 0;
 AirQualityLevel getAirQualityLevel(float pm2_5) {
   AirQualityLevel level;
 
-  if (pm2_5 <= 15.0) {
+  if (pm2_5 <= PM25_GOOD) {
       level = {1, "GOOD", 0};
-  } else if (pm2_5 <= 25.0) {
+  } else if (pm2_5 <= PM25_MODERATE) {
       level = {2, "MODERATE", 2};
-  } else if (pm2_5 <= 37.5) {
+  } else if (pm2_5 <= PM25_UNHEALTHY_SENSITIVE) {
       level = {3, "UNHEALTHY-S", 3};
-  } else if (pm2_5 <= 75.0) {
+  } else if (pm2_5 <= PM25_UNHEALTHY) {
       level = {4, "UNHEALTHY", 4};
-  } else if (pm2_5 <= 100.0) {
+  } else if (pm2_5 <= PM25_VERY_UNHEALTHY) {
       level = {5, "VERY BAD", 5};
   } else {
       level = {6, "HAZARDOUS", 6};
@@ -154,17 +160,29 @@ void updateLED(int blinkCount) {
   delay(pauseDuration);
 }
 
-// ฟังก์ชันควบคุมพัดลม
-void updateFAN(int levelFanSpeed) {
-  // กำหนดค่าความเร็วพัดลมตามระดับที่กำหนด
-  switch (levelFanSpeed) {
-    case 1: targetFanSpeed = FAN_SPEED_OFF; break;
-    case 2: targetFanSpeed = FAN_SPEED_LOW; break;
-    case 3: targetFanSpeed = FAN_SPEED_MEDIUM; break;
-    case 4: targetFanSpeed = FAN_SPEED_HIGH; break;
-    case 5: targetFanSpeed = FAN_SPEED_VERY_HIGH; break;
-    default: targetFanSpeed = FAN_SPEED_MAX; break;
+// ฟังก์ชันควบคุมพัดลมตามค่าเฉลี่ย PM2.5
+void updateFAN(float avgPM2_5) {
+  // กำหนดระดับความเร็วพัดลมตามค่าเฉลี่ย PM2.5
+  int fanSpeed;
+  
+  if (avgPM2_5 <= PM25_GOOD) {
+    fanSpeed = FAN_SPEED_OFF;  // ปิดพัดลม
+  } else if (avgPM2_5 <= PM25_MODERATE) {
+    fanSpeed = FAN_SPEED_LOW;  // ความเร็วต่ำ
+  } else if (avgPM2_5 <= PM25_UNHEALTHY_SENSITIVE) {
+    fanSpeed = FAN_SPEED_MEDIUM;  // ความเร็วปานกลาง
+  } else if (avgPM2_5 <= PM25_UNHEALTHY) {
+    fanSpeed = FAN_SPEED_HIGH;  // ความเร็วสูง
+  } else if (avgPM2_5 <= PM25_VERY_UNHEALTHY) {
+    fanSpeed = FAN_SPEED_VERY_HIGH;  // ความเร็วสูงมาก
+  } else {
+    fanSpeed = FAN_SPEED_MAX;  // ความเร็วสูงสุด
   }
+  
+  targetFanSpeed = fanSpeed;
+  
+  // เปิด-ปิด พัดลมเล็ก
+  digitalWrite(MINI_FAN_PIN, (targetFanSpeed > 0) ? HIGH : LOW);
   
   // ไม่ต้องทำอะไรถ้าความเร็วเดิมเท่ากับความเร็วใหม่
   if (currentFanSpeed == targetFanSpeed) {
@@ -187,32 +205,6 @@ void updateFAN(int levelFanSpeed) {
   }
   
   currentFanSpeed = targetFanSpeed;
-}
-
-// ฟังก์ชันควบคุม RGB LED
-void updateRGB(int levelRGB) {
-  if (levelRGB == 0) {
-      setColorRGB(0, 0, 0);         // **ปิดไฟ**
-      return;
-  } else if (levelRGB == 1) {
-      setColorRGB(0, 255, 0);       // **สีเขียวสด** → อากาศดีมาก (PM2.5 ต่ำมาก)
-  } else if (levelRGB == 2) {
-      setColorRGB(255, 255, 0);     // **สีเหลืองสด** → อากาศพอใช้ (PM2.5 เริ่มสูงขึ้น)
-  } else if (levelRGB == 3) {
-      setColorRGB(255, 165, 0);     // **สีส้มเข้ม** → อากาศเริ่มแย่ (PM2.5 ปานกลาง)
-  } else if (levelRGB == 4) {
-      setColorRGB(255, 0, 0);       // **สีแดงสด** → อากาศแย่ (PM2.5 สูง)
-  } else if (levelRGB == 5) {
-      setColorRGB(153, 50, 204);    // **สีม่วงอมน้ำเงิน (พลัม)** → อากาศแย่มาก (PM2.5 สูงมาก)
-  } else {
-      setColorRGB(139, 0, 0);       // **สีแดงเข้ม (เลือดหมู)** → อันตราย (PM2.5 อันตราย)
-  }
-}
-
-void setColorRGB(int R, int G, int B) {
-  analogWrite(RGB_RED_PIN,   R);
-  analogWrite(RGB_GREEN_PIN, G);
-  analogWrite(RGB_BLUE_PIN,  B);
 }
 
 // ===================== ฟังก์ชันอ่านค่าเซนเซอร์ =====================
@@ -408,10 +400,9 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
 
-  // ตั้งค่า RGB LED
-  pinMode(RGB_RED_PIN,   OUTPUT);
-  pinMode(RGB_GREEN_PIN, OUTPUT);
-  pinMode(RGB_BLUE_PIN,  OUTPUT);
+  // ตั้งค่า MINI FAN
+  pinMode(MINI_FAN_PIN, OUTPUT);
+  digitalWrite(MINI_FAN_PIN, LOW);
   
   // เริ่มต้นเซนเซอร์ AHT10
   if (!aht.begin()) {
@@ -421,6 +412,9 @@ void setup() {
   
   // ตั้งค่าจอ OLED
   setupOLED();
+  
+  Serial.println("Air Quality Monitor Started");
+  Serial.println("Fan will adjust speed based on average PM2.5 readings");
 }
 
 void loop() {
@@ -477,11 +471,15 @@ void loop() {
         break;
     }
     
-    // อัพเดท LED ตามระดับคุณภาพอากาศ
+    // อัพเดท LED ตามระดับคุณภาพอากาศของค่าปัจจุบัน
     AirQualityLevel level = getAirQualityLevel(airData.PM2_5);
     updateLED(level.blinkCount);
-    updateFAN(level.level);
-    // updateRGB(level.level);
+    
+    // อัพเดทพัดลมตามค่าเฉลี่ยของ PM2.5
+    updateFAN(avgPM2_5);
+    
+    // แสดงสถานะพัดลม
+    Serial.printf("Fan Speed: %d%% (PM2.5 Avg: %.1f)\n", currentFanSpeed, avgPM2_5);
   } else {
     Serial.println(F("Waiting for valid PMS7003 data..."));
   }
@@ -503,15 +501,17 @@ void loop() {
  *    - สามารถปรับเวลาในการสลับหน้าจอได้ที่ DISPLAY_SWITCH_INTERVAL
  *    - ปรับเวลาในการอ่านค่าได้ที่ READING_INTERVAL
  *    - ปรับจำนวนครั้งในการเก็บค่าเฉลี่ยได้ที่ AVERAGE_COUNT
+ *    - ปรับค่าระดับ PM2.5 สำหรับแต่ละเกณฑ์ได้ที่ตัวแปร PM25_*
+ *    - ปรับความเร็วพัดลมในแต่ละระดับได้ที่ตัวแปร FAN_SPEED_*
  * 
  * 3. การแก้ไขปัญหา:
  *    - หากจอ OLED ไม่แสดงผล ให้ตรวจสอบการต่อสาย SDA/SCL และ address
  *    - หากไม่พบ PMS7003 ให้ตรวจสอบการต่อสาย TX/RX
  *    - หากไม่พบ AHT10 ให้ตรวจสอบการต่อสาย I2C
+ *    - หากพัดลมไม่ทำงาน ตรวจสอบการต่อขา FAN_PIN และ MINI_FAN_PIN
  * 
- * 4. การพัฒนาต่อ:
- *    - สามารถเพิ่มการเชื่อมต่อ WiFi เพื่อส่งข้อมูลขึ้น Cloud
- *    - เพิ่มการบันทึกข้อมูลลง SD Card
- *    - เพิ่มการแจ้งเตือนผ่าน Line Notify
- *    - เพิ่มปุ่มกดเพื่อสลับหน้าจอแบบ Manual
+ * 4. เพิ่มเติม:
+ *    - พัดลมจะปรับความเร็วตามค่าเฉลี่ย PM2.5 (ไม่ใช่ค่าปัจจุบัน)
+ *    - การปรับความเร็วพัดลมจะเป็นแบบค่อยๆ เพิ่มหรือลด
+ *    - ทั้ง PWM และ MINI_FAN จะทำงานสัมพันธ์กัน
  */
